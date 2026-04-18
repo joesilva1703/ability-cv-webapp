@@ -17,7 +17,19 @@ export async function parseCv(file) {
     body: fd,
   });
   if (!res.ok) throw new Error(await _error(res));
-  return res.json();
+  // Read as text first so we can surface the actual body on a JSON parse
+  // failure — otherwise the user sees a bare "Unexpected token" with no
+  // indication of what the server sent back (truncated JSON, HTML error
+  // page, etc.).
+  const body = await res.text();
+  try {
+    return JSON.parse(body);
+  } catch (e) {
+    const snippet = body.slice(0, 300).replace(/\s+/g, " ");
+    throw new Error(
+      `Server returned a response that isn't valid JSON. First 300 chars: ${snippet}`
+    );
+  }
 }
 
 export async function generateCv(payload) {

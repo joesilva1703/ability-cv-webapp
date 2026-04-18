@@ -106,7 +106,7 @@ def parse_cv(cv_text: str, api_key: str | None = None, model: str | None = None)
     client = Anthropic(api_key=api_key)
     resp = client.messages.create(
         model=model,
-        max_tokens=4096,
+        max_tokens=8192,
         system=SYSTEM_PROMPT,
         messages=[
             {
@@ -124,8 +124,20 @@ def parse_cv(cv_text: str, api_key: str | None = None, model: str | None = None)
         block.text for block in resp.content if getattr(block, "type", None) == "text"
     ).strip()
 
+    # If Claude hit the token ceiling, the JSON is almost certainly truncated.
+    # Surface that clearly instead of letting the downstream parser explode with
+    # a cryptic "Expecting ',' delimiter".
+    if getattr(resp, "stop_reason", None) == "max_tokens":
+        raise ParserError(
+            "Claude response was truncated (hit max_tokens). "
+            "The CV may be too long — try a shorter version, or raise max_tokens."
+        )
+
     data = _coerce_json(text)
     return _normalise(data)
+
+
+_CTRL_CHARS = re.compile(r"[\x00-\x08\x0b\x0c\x0e-\x1f]")
 
 
 def _coerce_json(text: str) -> dict[str, Any]:
@@ -135,17 +147,29 @@ def _coerce_json(text: str) -> dict[str, Any]:
     if text.startswith("```"):
         text = re.sub(r"^```(?:json)?\s*", "", text)
         text = re.sub(r"\s*```\s*$", "", text)
-    try:
-        return json.loads(text)
-    except json.JSONDecodeError as e:
-        # Last-ditch: find the outermost {...}
-        match = re.search(r"\{.*\}", text, re.DOTALL)
-        if match:
-            try:
-                return json.loads(match.group(0))
-            except json.JSONDecodeError:
-                pass
-        raise ParserError(f"Claude did not return valid JSON: {e}") from e
+
+    # Strip stray control chars that sometimes sneak through from weird CV PDFs
+    # (form-feed, vertical tab, etc.) — json.loads rejects these inside strings.
+    cleaned = _CTRL_CHARS.sub("", text)
+
+    for candidate in (cleaned, text):
+        try:
+            return json.loads(candidate)
+        except json.JSONDecodeError:
+            # Last-ditch: find the outermost {...}
+            match = re.search(r"\{.*\}", candidate, re.DOTALL)
+            if match:
+                try:
+                    return json.loads(match.group(0))
+                except json.JSONDecodeError:
+                    continue
+
+    # Nothing parsed — show a snippet of what Claude returned so the error
+    # message in the browser actually points at the real problem.
+    snippet = text[:200].replace("\n", " ")
+    raise ParserError(
+        f"Claude did not return valid JSON. First 200 chars: {snippet!r}"
+    )
 
 
 def _normalise(data: dict[str, Any]) -> dict[str, Any]:
