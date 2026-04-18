@@ -1,0 +1,33 @@
+# Render.com blueprint for the Ability CV Formatter backend.
+# Point Render at this repo; it will auto-detect this file.
+
+services:
+  - type: web
+    name: ability-cv-api
+    runtime: python
+    plan: free
+    rootDir: backend
+    buildCommand: pip install -r requirements.txt
+    startCommand: uvicorn main:app --host 0.0.0.0 --port $PORT
+    envVars:
+      - key: PYTHON_VERSION
+        value: 3.11.9
+      - key: ANTHROPIC_API_KEY
+        sync: false                     # set manually in Render dashboard
+      - key: ALLOWED_ORIGINS
+        sync: false                     # e.g. https://ability-cv.netlify.app
+      - key: NETLIFY_SITE_URL
+        sync: false                     # e.g. https://ability-cv.netlify.app
+      - key: NETLIFY_JWT_SECRET
+        sync: false                     # optional — enables signature check
+      - key: REQUIRE_AUTH
+        value: "1"
+      - key: CLAUDE_MODEL
+        value: claude-sonnet-4-6
+      - key: DEFAULT_INTRODUCER_NAME
+        value: Joe
+      - key: DEFAULT_INTRODUCER_PHONE
+        value: 010 593 4900
+      - key: DEFAULT_INTRODUCER_EMAIL
+        value: joe@abilitygroup.co.za
+    healthCheckPath: /api/health
