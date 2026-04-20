@@ -75,7 +75,7 @@ function Shell({ user, children }) {
   return (
     <div className="app-shell">
       <header className="header">
-        <h1>Ability CV Formatter</h1>
+        <h1>Ability CV Builder</h1>
         {user && (
           <div className="user">
             <span>{user.email}</span>
@@ -92,7 +92,7 @@ function LoginGate() {
   return (
     <div className="app-shell">
       <header className="header">
-        <h1>Ability CV Formatter</h1>
+        <h1>Ability CV Builder</h1>
       </header>
       <main className="main">
         <div className="login-card">
