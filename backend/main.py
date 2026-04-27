@@ -15,8 +15,9 @@ POST /api/generate
 
 Auth
 ----
-Every /api endpoint (except /api/health) requires a Bearer token issued by
-Netlify Identity. See auth.py.
+Every /api endpoint (except /api/health) requires a Bearer JWT. See auth.py
+for verification details. Provider-agnostic: configure via JWT_ISSUER and
+optional JWT_SECRET env vars.
 """
 
 from __future__ import annotations

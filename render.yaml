@@ -15,11 +15,11 @@ services:
       - key: ANTHROPIC_API_KEY
         sync: false                     # set manually in Render dashboard
       - key: ALLOWED_ORIGINS
-        sync: false                     # e.g. https://ability-cv.netlify.app
-      - key: NETLIFY_SITE_URL
-        sync: false                     # e.g. https://ability-cv.netlify.app
-      - key: NETLIFY_JWT_SECRET
-        sync: false                     # optional — enables signature check
+        sync: false                     # e.g. https://ability-cv.vercel.app
+      - key: JWT_ISSUER
+        sync: false                     # expected `iss` claim on incoming JWTs
+      - key: JWT_SECRET
+        sync: false                     # optional — enables HS256 signature check
       - key: REQUIRE_AUTH
         value: "1"
       - key: CLAUDE_MODEL

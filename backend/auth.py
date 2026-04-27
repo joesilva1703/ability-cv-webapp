@@ -1,19 +1,17 @@
 """
-Netlify Identity JWT verification.
+JWT verification — provider-agnostic.
 
-Netlify Identity issues JWTs signed with a site-specific HS256 key. The
-recommended verification path is to trust the issuer (the Identity endpoint
-on your site) and validate the signature via the public JWKS. Netlify's
-Identity uses a shared secret that you can view in the Netlify dashboard
-(Identity → Settings → JWT Secret), or you can verify cryptographically.
-
-To keep setup minimal we do three lightweight checks:
+We do three lightweight checks on every protected request:
   1. Token is a well-formed JWT.
-  2. Issuer matches NETLIFY_SITE_URL/.netlify/identity.
+  2. Issuer matches JWT_ISSUER (if configured).
   3. Expiry hasn't passed.
 
-For a small team app this is adequate; if you need stronger guarantees,
-set NETLIFY_JWT_SECRET and we'll verify the HS256 signature too.
+If JWT_SECRET is set, we additionally verify the HS256 signature.
+
+This was originally written for Netlify Identity but is now provider-neutral
+so any HS256-issuing service (Supabase Auth, GoTrue self-hosted, custom
+auth) can plug in via JWT_ISSUER / JWT_SECRET environment variables.
+NETLIFY_SITE_URL / NETLIFY_JWT_SECRET are still honored as fallbacks.
 """
 
 from __future__ import annotations
@@ -47,7 +45,7 @@ def _decode_jwt(token: str) -> dict[str, Any]:
 
 
 def _verify_signature(token: str, secret: str) -> bool:
-    """Optional HS256 signature check when NETLIFY_JWT_SECRET is set."""
+    """Optional HS256 signature check when JWT_SECRET is set."""
     import hashlib
     import hmac
 
@@ -78,16 +76,16 @@ async def require_user(authorization: str | None = Header(default=None)) -> dict
 
     # Issuer
     iss = payload.get("iss") or ""
-    if config.NETLIFY_SITE_URL:
-        expected_iss = f"{config.NETLIFY_SITE_URL}/.netlify/identity"
-        if iss != expected_iss:
+    if config.JWT_ISSUER:
+        if iss != config.JWT_ISSUER:
             raise HTTPException(
                 status.HTTP_401_UNAUTHORIZED,
                 f"Unexpected token issuer: {iss}",
             )
 
-    # Optional signature verification
-    secret = os.environ.get("NETLIFY_JWT_SECRET", "")
+    # Optional signature verification — JWT_SECRET preferred, NETLIFY_JWT_SECRET
+    # honored as a fallback during the migration cutover.
+    secret = os.environ.get("JWT_SECRET") or os.environ.get("NETLIFY_JWT_SECRET", "")
     if secret and not _verify_signature(token, secret):
         raise HTTPException(status.HTTP_401_UNAUTHORIZED, "Invalid signature")
 
