@@ -89,6 +89,23 @@ function Shell({ user, children }) {
 }
 
 function LoginGate() {
+  const [email, setEmail] = useState("");
+  const [status, setStatus] = useState("idle"); // idle | sending | sent | error
+  const [errorMsg, setErrorMsg] = useState("");
+
+  const onSubmit = async (e) => {
+    e.preventDefault();
+    setStatus("sending");
+    setErrorMsg("");
+    const result = await login(email);
+    if (result.ok) {
+      setStatus("sent");
+    } else {
+      setStatus("error");
+      setErrorMsg(result.error || "Something went wrong.");
+    }
+  };
+
   return (
     <div className="app-shell">
       <header className="header">
@@ -98,12 +115,37 @@ function LoginGate() {
         <div className="login-card">
           <h2>Welcome</h2>
           <p>
-            Sign in with the email address Joe invited you with. Your
-            invitation link will let you set a password on first use.
+            Enter the email address Joe invited you with. We'll send you a
+            one-time sign-in link.
           </p>
-          <button className="btn" onClick={login}>
-            Sign in
-          </button>
+          {status === "sent" ? (
+            <p>
+              ✓ Check your inbox — we sent a sign-in link to{" "}
+              <strong>{email}</strong>. Click it to come back here signed in.
+            </p>
+          ) : (
+            <form onSubmit={onSubmit} className="login-form">
+              <input
+                type="email"
+                placeholder="you@company.com"
+                value={email}
+                onChange={(e) => setEmail(e.target.value)}
+                required
+                autoComplete="email"
+                disabled={status === "sending"}
+              />
+              <button
+                className="btn"
+                type="submit"
+                disabled={status === "sending"}
+              >
+                {status === "sending" ? "Sending…" : "Send sign-in link"}
+              </button>
+              {status === "error" && (
+                <p className="error">{errorMsg}</p>
+              )}
+            </form>
+          )}
         </div>
       </main>
     </div>

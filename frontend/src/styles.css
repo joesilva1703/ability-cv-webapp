@@ -38,6 +38,9 @@ a { color: var(--brand); }
 .login-card { max-width: 420px; margin: 80px auto; background: var(--panel); padding: 36px 32px; border: 1px solid var(--border); border-radius: var(--radius); box-shadow: var(--shadow); text-align: center; }
 .login-card h2 { margin: 0 0 10px; color: var(--brand); }
 .login-card p { color: var(--muted); margin: 0 0 24px; }
+.login-form { display: flex; flex-direction: column; gap: 12px; }
+.login-form input { padding: 10px 12px; font-size: 14px; border: 1px solid var(--border); border-radius: 6px; }
+.login-form .error { color: #c0392b; margin: 0; font-size: 13px; }
 
 /* ------- Generic card ------- */
 .card { background: var(--panel); border: 1px solid var(--border); border-radius: var(--radius); box-shadow: var(--shadow); padding: 24px; margin-bottom: 20px; }
