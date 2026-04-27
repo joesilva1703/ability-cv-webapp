@@ -1,21 +1,21 @@
-// Auth wrapper around Supabase Auth.
+// Auth wrapper around Supabase Auth — email + password sign-in.
 //
-// Exposes the same shape the rest of the app already uses:
-//   initAuth()                 — kick off session bootstrap & subscribe to changes
-//   getUser()                  — current user (null when signed out)
-//   onChange(cb)               — subscribe to user changes; returns unsubscribe
-//   login(email)               — send a magic-link sign-in email; returns
-//                                {ok, error}
-//   logout()                   — sign out
-//   token()                    — fresh JWT (auto-refreshes), or null
-//
-// Login flow: invite-only magic links. The user types their email, clicks
-// "Send link", receives an email, clicks the link, and lands back on the app
-// authenticated. No passwords to manage.
+// Exposes:
+//   initAuth()                   — bootstrap session & subscribe to changes
+//   getUser()                    — current user (null when signed out)
+//   onChange(cb)                 — subscribe to user changes; returns unsubscribe
+//   onPasswordRecovery(cb)       — fires when user lands via password-reset link;
+//                                  caller should show a "set new password" UI
+//   login(email, password)       — sign in; returns {ok, error}
+//   logout()                     — sign out
+//   token()                      — fresh JWT (auto-refreshes), or null
+//   sendPasswordReset(email)     — send password-reset email; {ok, error}
+//   updatePassword(newPassword)  — set a new password; {ok, error}
 
 import { supabase, isConfigured } from "./supabase.js";
 
 let listeners = new Set();
+let recoveryListeners = new Set();
 let cachedUser = null;
 let initDone = false;
 let initCalled = false;
@@ -31,18 +31,23 @@ export function initAuth() {
   initCalled = true;
 
   if (!isConfigured) {
-    // Provider not configured — surface a null user so the UI shows the login
-    // screen instead of hanging on "Loading…".
     _notify(null);
     return;
   }
 
-  // Hydrate current session synchronously, then subscribe to future changes.
   supabase.auth.getSession().then(({ data }) => {
     _notify(data.session?.user ?? null);
   });
 
-  supabase.auth.onAuthStateChange((_event, session) => {
+  supabase.auth.onAuthStateChange((event, session) => {
+    if (event === "PASSWORD_RECOVERY") {
+      // User clicked a recovery link. Tell the UI to prompt for a new password.
+      // We still mark the session as active so the user is "signed in" for the
+      // duration of the recovery flow.
+      _notify(session?.user ?? null);
+      recoveryListeners.forEach((cb) => cb());
+      return;
+    }
     _notify(session?.user ?? null);
   });
 }
@@ -57,27 +62,19 @@ export function onChange(cb) {
   return () => listeners.delete(cb);
 }
 
-/**
- * Send a magic link to `email`. The user clicks the link in their inbox to
- * complete sign-in.
- *
- * @param {string} email
- * @returns {Promise<{ok: boolean, error?: string}>}
- */
-export async function login(email) {
+export function onPasswordRecovery(cb) {
+  recoveryListeners.add(cb);
+  return () => recoveryListeners.delete(cb);
+}
+
+export async function login(email, password) {
   if (!isConfigured) {
     return { ok: false, error: "Auth is not configured (Supabase env vars missing)." };
   }
-  if (!email || !email.includes("@")) {
-    return { ok: false, error: "Please enter a valid email address." };
+  if (!email || !password) {
+    return { ok: false, error: "Please enter your email and password." };
   }
-  const { error } = await supabase.auth.signInWithOtp({
-    email,
-    options: {
-      // Send the user back to the app after they click the link.
-      emailRedirectTo: window.location.origin,
-    },
-  });
+  const { error } = await supabase.auth.signInWithPassword({ email, password });
   if (error) return { ok: false, error: error.message };
   return { ok: true };
 }
@@ -87,9 +84,34 @@ export async function logout() {
   await supabase.auth.signOut();
 }
 
-// Fetch a fresh JWT (auto-refreshes if near expiry).
 export async function token() {
   if (!isConfigured) return null;
   const { data } = await supabase.auth.getSession();
   return data.session?.access_token ?? null;
+}
+
+export async function sendPasswordReset(email) {
+  if (!isConfigured) {
+    return { ok: false, error: "Auth is not configured." };
+  }
+  if (!email || !email.includes("@")) {
+    return { ok: false, error: "Please enter a valid email address." };
+  }
+  const { error } = await supabase.auth.resetPasswordForEmail(email, {
+    redirectTo: window.location.origin,
+  });
+  if (error) return { ok: false, error: error.message };
+  return { ok: true };
+}
+
+export async function updatePassword(newPassword) {
+  if (!isConfigured) {
+    return { ok: false, error: "Auth is not configured." };
+  }
+  if (!newPassword || newPassword.length < 8) {
+    return { ok: false, error: "Password must be at least 8 characters." };
+  }
+  const { error } = await supabase.auth.updateUser({ password: newPassword });
+  if (error) return { ok: false, error: error.message };
+  return { ok: true };
 }
