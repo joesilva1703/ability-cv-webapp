@@ -1,5 +1,5 @@
 """
-Extract plain text from an uploaded CV (PDF or .docx).
+Extract plain text from an uploaded CV (PDF, .docx, or legacy .doc).
 
 Tries multiple backends in order:
 
@@ -12,8 +12,13 @@ PDF:
   1. python-docx paragraphs + tables
   2. pandoc fallback
 
+.doc (legacy Word 97-2003 binary):
+  1. LibreOffice headless (`soffice`) converts .doc -> .docx, then run the
+     .docx path above.
+  2. pandoc fallback (only if installed)
+
 Returns a single string. Raises EmptyExtractionError if nothing was extractable
-(typically means the PDF is an image-only scan).
+(typically means the PDF is an image-only scan, or the .doc is corrupt).
 """
 
 from __future__ import annotations
@@ -122,7 +127,15 @@ def _extract_pdf(data: bytes) -> str:
 
 
 def _extract_docx(data: bytes, suffix: str) -> str:
-    # 1. python-docx
+    # If this is a legacy .doc, convert to .docx first using LibreOffice
+    # headless. After conversion we fall through to the .docx path.
+    if suffix == ".doc":
+        converted = _convert_doc_to_docx(data)
+        if converted is not None:
+            data = converted
+            suffix = ".docx"
+
+    # 1. python-docx (handles .docx; also handles converted .doc -> .docx)
     if suffix == ".docx":
         try:
             import io
@@ -165,3 +178,45 @@ def _extract_docx(data: bytes, suffix: str) -> str:
                 pass
 
     return ""
+
+
+def _convert_doc_to_docx(data: bytes) -> bytes | None:
+    """
+    Convert legacy .doc bytes to .docx bytes using LibreOffice headless.
+
+    Returns the .docx bytes on success, or None if soffice isn't available
+    or conversion failed. Callers should fall through to other backends
+    in the None case.
+    """
+    soffice = shutil.which("soffice") or shutil.which("libreoffice")
+    if not soffice:
+        return None
+    with tempfile.TemporaryDirectory() as td:
+        src = Path(td) / "cv.doc"
+        src.write_bytes(data)
+        try:
+            # LibreOffice writes the converted file into --outdir using the
+            # same stem as the input ("cv" -> "cv.docx").
+            subprocess.run(
+                [
+                    soffice,
+                    "--headless",
+                    "--convert-to",
+                    "docx",
+                    "--outdir",
+                    str(td),
+                    str(src),
+                ],
+                check=True,
+                capture_output=True,
+                timeout=45,
+            )
+        except (subprocess.CalledProcessError, subprocess.TimeoutExpired):
+            return None
+        out = Path(td) / "cv.docx"
+        if not out.exists():
+            return None
+        try:
+            return out.read_bytes()
+        except OSError:
+            return None
