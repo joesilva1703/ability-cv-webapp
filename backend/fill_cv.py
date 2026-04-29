@@ -100,9 +100,13 @@ def _clone_element_after(element):
 
 
 def _add_bullet_paragraphs(cell, items: list[str], *, template_idx: int = 0,
-                           tbc_if_empty: bool = True) -> None:
+                           tbc_if_empty: bool = False) -> None:
     """Replace a cell's contents with a bulleted list using the cell's existing
-    bullet paragraph as the style template."""
+    bullet paragraph as the style template. Blank items are dropped, and an
+    empty list leaves the cell empty (no TBC placeholder) unless the caller
+    explicitly opts in via ``tbc_if_empty=True``."""
+    # Drop any blank / whitespace-only bullets so we never render an empty bullet.
+    items = [str(s) for s in (items or []) if s is not None and str(s).strip()]
     if not items:
         if tbc_if_empty:
             items = [TBC]
@@ -183,30 +187,12 @@ def fill_introducer(doc, introducer: dict) -> None:
 
 
 def fill_summary(doc, summary: dict | None) -> None:
-    """Table 2: CANDIDATE SUMMARY content cell.
-    Expects {'paragraph': '<narrative>', 'bullets': ['...', '...']}."""
+    """Table 2: CANDIDATE SUMMARY content cell. Renders only the bullet
+    points — the narrative ``paragraph`` field is intentionally ignored."""
     cell = doc.tables[2].rows[0].cells[0]
     summary = summary or {}
-    paragraph_text = (summary.get("paragraph") or "").strip()
     bullets = summary.get("bullets") or []
-
-    if bullets:
-        _add_bullet_paragraphs(cell, bullets)
-    else:
-        # Clear all paragraphs so we can place the narrative cleanly
-        for p in list(cell.paragraphs):
-            p._element.getparent().remove(p._element)
-
-    if paragraph_text:
-        from docx.oxml import OxmlElement
-        from docx.text.paragraph import Paragraph
-        new_p_el = OxmlElement("w:p")
-        if cell.paragraphs:
-            cell.paragraphs[0]._element.addprevious(new_p_el)
-        else:
-            cell._tc.append(new_p_el)
-        Paragraph(new_p_el, cell).add_run(paragraph_text)
-
+    _add_bullet_paragraphs(cell, bullets)
     if not cell.paragraphs:
         cell.add_paragraph()
 
