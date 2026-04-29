@@ -187,12 +187,30 @@ def fill_introducer(doc, introducer: dict) -> None:
 
 
 def fill_summary(doc, summary: dict | None) -> None:
-    """Table 2: CANDIDATE SUMMARY content cell. Renders only the bullet
-    points — the narrative ``paragraph`` field is intentionally ignored."""
+    """Table 2: CANDIDATE SUMMARY content cell.
+    Expects {'paragraph': '<narrative>', 'bullets': ['...', '...']}."""
     cell = doc.tables[2].rows[0].cells[0]
     summary = summary or {}
+    paragraph_text = (summary.get("paragraph") or "").strip()
     bullets = summary.get("bullets") or []
-    _add_bullet_paragraphs(cell, bullets)
+
+    if bullets:
+        _add_bullet_paragraphs(cell, bullets)
+    else:
+        # Clear all paragraphs so we can place the narrative cleanly
+        for p in list(cell.paragraphs):
+            p._element.getparent().remove(p._element)
+
+    if paragraph_text:
+        from docx.oxml import OxmlElement
+        from docx.text.paragraph import Paragraph
+        new_p_el = OxmlElement("w:p")
+        if cell.paragraphs:
+            cell.paragraphs[0]._element.addprevious(new_p_el)
+        else:
+            cell._tc.append(new_p_el)
+        Paragraph(new_p_el, cell).add_run(paragraph_text)
+
     if not cell.paragraphs:
         cell.add_paragraph()
 
