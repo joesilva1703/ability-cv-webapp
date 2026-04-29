@@ -148,7 +148,7 @@ async def generate_endpoint(
     fill_payload = _empty_strings_to_null(fill_payload)
 
     name = _sanitize_filename(candidate.get("name"))
-    filename = f"{name} - CV.docx"
+    filename = f"{name}.docx"
 
     with tempfile.TemporaryDirectory() as td:
         out_path = Path(td) / filename
