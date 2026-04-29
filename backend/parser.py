@@ -31,8 +31,10 @@ RULES:
 - Never fabricate facts. If a field is not in the CV, set it to null.
 - work_summary and work_experience must be reverse-chronological (most recent first) \
   and must cover the same jobs.
-- For each role, extract 4-8 concise duty bullets. Keep the candidate's phrasing \
-  but tighten for readability. Do not invent responsibilities.
+- For each role, list every duty / responsibility the candidate provided — \
+  do NOT summarise, condense, merge, or drop bullets, and do not cap the \
+  number. Preserve the candidate's wording verbatim (only fix obvious typos \
+  or normalise capitalisation). Do not invent responsibilities.
 - Dates: normalise to "Month YYYY – Month YYYY" where the source is clear, \
   otherwise preserve the candidate's format.
 - EE/Gender: only fill if explicitly stated (e.g. "African Female", "Coloured Male"). \
