@@ -1,7 +1,7 @@
 import React, { useRef, useState } from "react";
 import { parseCv } from "../api.js";
 
-export default function Upload({ defaultIntroducer, onParsed }) {
+export default function Upload({ onParsed }) {
   const inputRef = useRef(null);
   const [file, setFile] = useState(null);
   const [drag, setDrag] = useState(false);
@@ -73,12 +73,6 @@ export default function Upload({ defaultIntroducer, onParsed }) {
             </button>
           </div>
         )}
-      </div>
-
-      <div style={{ marginTop: 14, color: "#6b7280", fontSize: 13 }}>
-        Introduced by <strong>{defaultIntroducer.name}</strong> ·{" "}
-        {defaultIntroducer.phone} · {defaultIntroducer.email}. You can override
-        this per CV on the next screen.
       </div>
 
       {err && <div className="alert err">{err}</div>}

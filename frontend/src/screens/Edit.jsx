@@ -6,9 +6,9 @@ import { generateCv } from "../api.js";
 /* ------------------------------------------------------------------------- */
 
 const TABS = [
+  "Introducer",
   "Summary",
   "Personal info",
-  "Introducer",
   "Work experience",
   "Education",
   "Skills",
@@ -59,8 +59,7 @@ export default function Edit({
   onBack,
   onGenerated,
 }) {
-  const [tab, setTab] = useState("Summary");
-  const [overrideIntro, setOverrideIntro] = useState(false);
+  const [tab, setTab] = useState("Introducer");
   const [introducer, setIntroducer] = useState(defaultIntroducer);
   const [busy, setBusy] = useState(false);
   const [err, setErr] = useState("");
@@ -79,7 +78,7 @@ export default function Edit({
     try {
       const payload = {
         data,
-        introducer_override: overrideIntro ? introducer : null,
+        introducer_override: introducer,
       };
       const result = await generateCv(payload);
       onGenerated(result);
@@ -133,9 +132,6 @@ export default function Edit({
         )}
         {tab === "Introducer" && (
           <IntroducerTab
-            defaultIntroducer={defaultIntroducer}
-            overrideIntro={overrideIntro}
-            setOverrideIntro={setOverrideIntro}
             introducer={introducer}
             setIntroducer={setIntroducer}
           />
@@ -278,56 +274,39 @@ function PersonalInfoTab({ data, setData }) {
   );
 }
 
-function IntroducerTab({
-  defaultIntroducer,
-  overrideIntro,
-  setOverrideIntro,
-  introducer,
-  setIntroducer,
-}) {
+function IntroducerTab({ introducer, setIntroducer }) {
   return (
     <>
       <p className="muted" style={{ marginTop: 0 }}>
-        By default the CV is introduced by{" "}
-        <strong>{defaultIntroducer.name}</strong> ({defaultIntroducer.email}).
-        Override here if another consultant is sending it.
+        These details appear on the "INTRODUCED BY" line at the top of the
+        generated CV.
       </p>
-      <label style={{ display: "block", marginBottom: 12 }}>
-        <input
-          type="checkbox"
-          checked={overrideIntro}
-          onChange={(e) => setOverrideIntro(e.target.checked)}
-        />{" "}
-        Override introducer for this CV
-      </label>
-      {overrideIntro && (
-        <div className="grid-2">
-          <Field label="Name">
-            <input
-              value={introducer.name || ""}
-              onChange={(e) =>
-                setIntroducer((p) => ({ ...p, name: e.target.value }))
-              }
-            />
-          </Field>
-          <Field label="Phone">
-            <input
-              value={introducer.phone || ""}
-              onChange={(e) =>
-                setIntroducer((p) => ({ ...p, phone: e.target.value }))
-              }
-            />
-          </Field>
-          <Field label="Email">
-            <input
-              value={introducer.email || ""}
-              onChange={(e) =>
-                setIntroducer((p) => ({ ...p, email: e.target.value }))
-              }
-            />
-          </Field>
-        </div>
-      )}
+      <div className="grid-2">
+        <Field label="Name of Recruiter">
+          <input
+            value={introducer.name || ""}
+            onChange={(e) =>
+              setIntroducer((p) => ({ ...p, name: e.target.value }))
+            }
+          />
+        </Field>
+        <Field label="Contact Number">
+          <input
+            value={introducer.phone || ""}
+            onChange={(e) =>
+              setIntroducer((p) => ({ ...p, phone: e.target.value }))
+            }
+          />
+        </Field>
+        <Field label="Email Address">
+          <input
+            value={introducer.email || ""}
+            onChange={(e) =>
+              setIntroducer((p) => ({ ...p, email: e.target.value }))
+            }
+          />
+        </Field>
+      </div>
     </>
   );
 }

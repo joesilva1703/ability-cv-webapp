@@ -71,7 +71,7 @@ export default function App() {
   return (
     <Shell user={user}>
       {step === "upload" && (
-        <Upload defaultIntroducer={defaultIntroducer} onParsed={onParsed} />
+        <Upload onParsed={onParsed} />
       )}
       {step === "edit" && (
         <Edit
