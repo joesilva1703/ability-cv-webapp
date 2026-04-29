@@ -52,6 +52,10 @@ app.add_middleware(
     allow_credentials=False,
     allow_methods=["GET", "POST", "OPTIONS"],
     allow_headers=["Authorization", "Content-Type"],
+    # Browsers hide non-simple response headers from JS unless we list them
+    # here — without this, the frontend can't read the filename and falls
+    # back to "CV.docx".
+    expose_headers=["Content-Disposition", "X-Ability-Filename"],
 )
 
 

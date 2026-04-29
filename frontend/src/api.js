@@ -43,9 +43,16 @@ export async function generateCv(payload) {
   });
   if (!res.ok) throw new Error(await _error(res));
   const blob = await res.blob();
+  // Try Content-Disposition first, fall back to the custom X-Ability-Filename
+  // header in case the browser hides Content-Disposition from JS for any
+  // reason. Last-ditch fallback uses the candidate's name from the payload.
   const cd = res.headers.get("Content-Disposition") || "";
-  const match = /filename="([^"]+)"/.exec(cd);
-  const filename = match ? match[1] : "CV.docx";
+  const match = /filename\*?=(?:UTF-8'')?"?([^";]+)"?/i.exec(cd);
+  const headerName =
+    res.headers.get("X-Ability-Filename") || (match ? match[1] : "");
+  const candidateName = payload?.data?.candidate?.name?.trim();
+  const fallback = candidateName ? `${candidateName}.docx` : "CV.docx";
+  const filename = (headerName || fallback).trim();
   return { blob, filename };
 }
 
