@@ -26,6 +26,20 @@ TBC = "TBC"
 BODY_FONT = "Century Gothic"
 BODY_SIZE_PT = 9
 
+# Section-banner / "main heading" text. These paragraphs keep their original
+# (inherited) size; only the font name is normalised.
+MAIN_HEADING_TEXTS = {
+    "CANDIDATE SUMMARY",
+    "PERSONAL INFORMATION",
+    "WORK SUMMARY",
+    "EDUCATION",
+    "TERTIARY EDUCATION",
+    "PROFESSIONAL MEMBERSHIPS",
+    "SKILLS",
+    "COMPUTER SKILLS",
+    "WORK EXPERIENCE",
+}
+
 
 # ---------------------------------------------------------------------------
 # Low-level helpers
@@ -423,31 +437,65 @@ def _set_run_font(run, *, name: str, size_pt: int | None) -> None:
         run.font.size = Pt(size_pt)
 
 
+def _is_protected_paragraph(p) -> bool:
+    """Return True if this paragraph should be left completely untouched.
+    Matches the two disclaimers by text. Handles the top disclaimer's
+    'Disclaimer:' centered title (with colon) and the last-page disclaimer's
+    'Disclaimer' heading + body."""
+    text = p.text.strip()
+    if not text:
+        return False
+    if text in ("Disclaimer", "Disclaimer:"):
+        return True
+    if text.startswith("You may only use this information"):
+        return True
+    if text.startswith("The information contained in this document"):
+        return True
+    return False
+
+
 def _apply_body_font(doc) -> None:
-    """Set every run to Century Gothic. Resize to 9pt only when the run's
-    current explicit size is <= 9pt (i.e. body text). Larger or unsized runs
-    are treated as headers and keep their current size."""
+    """Normalise body content to Century Gothic 9pt. The following are left
+    completely untouched (font and size unchanged):
+      * candidate name and position (TBL0 row 0 col 0 — the title block)
+      * the 'Disclaimer:' title at the top of the CV (and its embedded textbox)
+      * the disclaimer on the last page ('Disclaimer' heading + body text)
+    Main section headings (CANDIDATE SUMMARY, PERSONAL INFORMATION, WORK
+    SUMMARY, EDUCATION, TERTIARY EDUCATION, PROFESSIONAL MEMBERSHIPS, SKILLS,
+    COMPUTER SKILLS, WORK EXPERIENCE) keep their current size; only the font
+    name is normalised to Century Gothic."""
     def _process_paragraph(p):
+        if _is_protected_paragraph(p):
+            return
+        is_main_heading = p.text.strip().upper() in MAIN_HEADING_TEXTS
         for run in p.runs:
-            current = run.font.size
-            keep_size = current is None or current.pt > BODY_SIZE_PT
             _set_run_font(
                 run,
                 name=BODY_FONT,
-                size_pt=None if keep_size else BODY_SIZE_PT,
+                size_pt=None if is_main_heading else BODY_SIZE_PT,
             )
 
-    def _walk_tables(tables):
-        for tbl in tables:
-            for row in tbl.rows:
-                for cell in row.cells:
-                    for p in cell.paragraphs:
-                        _process_paragraph(p)
-                    _walk_tables(cell.tables)
+    def _walk_cell(cell):
+        for p in cell.paragraphs:
+            _process_paragraph(p)
+        for nested in cell.tables:
+            _walk_table(nested, skip_first_cell=False)
+
+    def _walk_table(tbl, *, skip_first_cell: bool):
+        for ri, row in enumerate(tbl.rows):
+            for ci, cell in enumerate(row.cells):
+                if skip_first_cell and ri == 0 and ci == 0:
+                    # Candidate name + position cell — leave entirely untouched.
+                    continue
+                _walk_cell(cell)
 
     for p in doc.paragraphs:
         _process_paragraph(p)
-    _walk_tables(doc.tables)
+
+    for ti, tbl in enumerate(doc.tables):
+        # Only the very first table's first cell is the title block; nested
+        # tables (if any) elsewhere should be processed normally.
+        _walk_table(tbl, skip_first_cell=(ti == 0))
 
     for section in doc.sections:
         for part in (section.header, section.footer,
@@ -457,7 +505,8 @@ def _apply_body_font(doc) -> None:
                 continue
             for p in part.paragraphs:
                 _process_paragraph(p)
-            _walk_tables(part.tables)
+            for tbl in part.tables:
+                _walk_table(tbl, skip_first_cell=False)
 
 
 # ---------------------------------------------------------------------------
