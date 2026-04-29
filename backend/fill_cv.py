@@ -186,14 +186,33 @@ def fill_introducer(doc, introducer: dict) -> None:
             return
 
 
+def add_top_disclaimer_spacer(doc) -> None:
+    """Insert a blank paragraph after the top 'Disclaimer:' block (the
+    centred title with the embedded textbox) so there is a visible gap
+    before the CANDIDATE SUMMARY heading. The last-page disclaimer's
+    heading is plain 'Disclaimer' (no colon) and is not affected."""
+    for p in doc.paragraphs:
+        if p.text.strip() == "Disclaimer:":
+            spacer = OxmlElement("w:p")
+            p._element.addnext(spacer)
+            return
+
+
 def fill_summary(doc, summary: dict | None) -> None:
     """Table 2: CANDIDATE SUMMARY content cell. Renders only the bullet
-    points — the narrative ``paragraph`` field is intentionally ignored."""
+    points — the narrative ``paragraph`` field is intentionally ignored.
+    A blank paragraph is inserted above the first bullet so there is a
+    visible gap between the CANDIDATE SUMMARY heading and the bullets."""
     cell = doc.tables[2].rows[0].cells[0]
     summary = summary or {}
     bullets = summary.get("bullets") or []
     _add_bullet_paragraphs(cell, bullets)
-    if not cell.paragraphs:
+    # Spacer paragraph at the top of the cell.
+    spacer = OxmlElement("w:p")
+    if cell.paragraphs:
+        cell.paragraphs[0]._element.addprevious(spacer)
+    else:
+        cell._tc.append(spacer)
         cell.add_paragraph()
 
 
@@ -340,11 +359,16 @@ def fill_work_experience(doc, experiences: list[dict]) -> None:
     while len(job_tables) > len(experiences):
         extra = job_tables.pop()
         extra._element.getparent().remove(extra._element)
-    # If more experiences than templates, clone the last template for each additional
+    # If more experiences than templates, clone the last template for each additional.
+    # Insert a blank paragraph between consecutive role tables so there's a
+    # visible gap between roles (the template already has one between TBL14
+    # and TBL15; new tables need their own spacer added).
     while len(job_tables) < len(experiences):
         src = job_tables[-1]
+        spacer_el = OxmlElement("w:p")
+        src._element.addnext(spacer_el)
         new_tbl_el = copy.deepcopy(src._element)
-        src._element.addnext(new_tbl_el)
+        spacer_el.addnext(new_tbl_el)
         from docx.table import Table
         new_tbl = Table(new_tbl_el, src._parent)
         job_tables.append(new_tbl)
@@ -503,6 +527,7 @@ def fill_cv(template_path: Path, data: dict, output_path: Path) -> None:
     doc = Document(str(template_path))
     fill_header(doc, data.get("candidate") or {})
     fill_introducer(doc, data.get("introducer") or {})
+    add_top_disclaimer_spacer(doc)
     fill_summary(doc, data.get("summary"))
     fill_personal_info(doc, data.get("candidate") or {})
     fill_work_summary(doc, data.get("work_summary") or [])
