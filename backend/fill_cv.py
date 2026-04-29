@@ -18,10 +18,13 @@ from pathlib import Path
 
 from docx import Document
 from docx.enum.text import WD_COLOR_INDEX
+from docx.oxml import OxmlElement
 from docx.oxml.ns import qn
 from docx.shared import Pt
 
 TBC = "TBC"
+BODY_FONT = "Century Gothic"
+BODY_SIZE_PT = 9
 
 
 # ---------------------------------------------------------------------------
@@ -396,6 +399,68 @@ def _fill_reason(cell, reason: str | None) -> None:
 
 
 # ---------------------------------------------------------------------------
+# Body-font normalisation
+# ---------------------------------------------------------------------------
+
+def _set_run_font(run, *, name: str, size_pt: int | None) -> None:
+    """Force a run's font name (all script slots) and optionally its size."""
+    rpr = run._element.find(qn("w:rPr"))
+    if rpr is None:
+        rpr = OxmlElement("w:rPr")
+        run._element.insert(0, rpr)
+    rfonts = rpr.find(qn("w:rFonts"))
+    if rfonts is None:
+        rfonts = OxmlElement("w:rFonts")
+        rpr.insert(0, rfonts)
+    # Set every script slot so themed fonts (asciiTheme/hAnsiTheme) are overridden.
+    for attr in ("w:ascii", "w:hAnsi", "w:cs", "w:eastAsia"):
+        rfonts.set(qn(attr), name)
+    # Remove any themed-font attributes that would otherwise win over the explicit name.
+    for attr in ("w:asciiTheme", "w:hAnsiTheme", "w:cstheme", "w:eastAsiaTheme"):
+        if rfonts.get(qn(attr)) is not None:
+            del rfonts.attrib[qn(attr)]
+    if size_pt is not None:
+        run.font.size = Pt(size_pt)
+
+
+def _apply_body_font(doc) -> None:
+    """Set every run to Century Gothic. Resize to 9pt only when the run's
+    current explicit size is <= 9pt (i.e. body text). Larger or unsized runs
+    are treated as headers and keep their current size."""
+    def _process_paragraph(p):
+        for run in p.runs:
+            current = run.font.size
+            keep_size = current is None or current.pt > BODY_SIZE_PT
+            _set_run_font(
+                run,
+                name=BODY_FONT,
+                size_pt=None if keep_size else BODY_SIZE_PT,
+            )
+
+    def _walk_tables(tables):
+        for tbl in tables:
+            for row in tbl.rows:
+                for cell in row.cells:
+                    for p in cell.paragraphs:
+                        _process_paragraph(p)
+                    _walk_tables(cell.tables)
+
+    for p in doc.paragraphs:
+        _process_paragraph(p)
+    _walk_tables(doc.tables)
+
+    for section in doc.sections:
+        for part in (section.header, section.footer,
+                     section.first_page_header, section.first_page_footer,
+                     section.even_page_header, section.even_page_footer):
+            if part is None:
+                continue
+            for p in part.paragraphs:
+                _process_paragraph(p)
+            _walk_tables(part.tables)
+
+
+# ---------------------------------------------------------------------------
 # Orchestration
 # ---------------------------------------------------------------------------
 
@@ -412,6 +477,7 @@ def fill_cv(template_path: Path, data: dict, output_path: Path) -> None:
     fill_skills(doc, data.get("skills") or [])
     fill_computer_skills(doc, data.get("computer_skills") or [])
     fill_work_experience(doc, data.get("work_experience") or [])
+    _apply_body_font(doc)
     doc.save(str(output_path))
 
 
