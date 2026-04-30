@@ -199,15 +199,37 @@ def add_top_disclaimer_spacer(doc) -> None:
 
 
 def fill_summary(doc, summary: dict | None) -> None:
-    """Table 2: CANDIDATE SUMMARY content cell. Renders only the bullet
-    points — the narrative ``paragraph`` field is intentionally ignored.
-    A blank paragraph is inserted above the first bullet so there is a
-    visible gap between the CANDIDATE SUMMARY heading and the bullets."""
+    """Table 2: CANDIDATE SUMMARY content cell. Renders the narrative
+    ``paragraph`` (if present) followed by the ``bullets`` list. A blank
+    paragraph is inserted above the first item so there is a visible gap
+    between the CANDIDATE SUMMARY heading and the body."""
+    from docx.text.paragraph import Paragraph
+
     cell = doc.tables[2].rows[0].cells[0]
     summary = summary or {}
+    paragraph_text = (summary.get("paragraph") or "").strip()
     bullets = summary.get("bullets") or []
+
+    # Render bullets first so we have a known-good first paragraph to anchor
+    # to. _add_bullet_paragraphs leaves a single empty paragraph if there are
+    # no bullets, which is fine — the narrative paragraph still inserts above.
     _add_bullet_paragraphs(cell, bullets)
-    # Spacer paragraph at the top of the cell.
+
+    # Insert the narrative paragraph above the first bullet (plain paragraph,
+    # no bullet style — uses cell defaults).
+    if paragraph_text:
+        narrative_el = OxmlElement("w:p")
+        if cell.paragraphs:
+            cell.paragraphs[0]._element.addprevious(narrative_el)
+        else:
+            cell._tc.append(narrative_el)
+        narrative_p = Paragraph(narrative_el, cell)
+        narrative_run = narrative_p.add_run(paragraph_text)
+        narrative_run.font.name = BODY_FONT
+        narrative_run.font.size = Pt(BODY_SIZE_PT)
+
+    # Spacer paragraph at the top of the cell so there's visual breathing
+    # room between the CANDIDATE SUMMARY heading and the first line of body.
     spacer = OxmlElement("w:p")
     if cell.paragraphs:
         cell.paragraphs[0]._element.addprevious(spacer)
